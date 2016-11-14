@@ -1,0 +1,23 @@
+{
+  "name": "folder-clean",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --harmony-async-await test.js | tap-dot"
+  },
+  "keywords": [],
+  "author": "Fabian Eichenberger <fabian.eichenberger@gmail.com> (https://github.com/queckezz)",
+  "license": "MIT",
+  "devDependencies": {
+    "recursive-copy": "^2.0.5",
+    "rmfr": "^1.0.1",
+    "tap-dot": "^1.0.5",
+    "tape": "^4.6.2"
+  },
+  "dependencies": {
+    "date-fns": "^1.10.0",
+    "mz": "^2.5.0",
+    "ramda": "^0.22.1"
+  }
+}
