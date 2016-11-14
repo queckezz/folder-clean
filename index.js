@@ -75,9 +75,9 @@ const sortByType = (actions) => {
     ({ type }) => {
       switch (type) {
         case itemTypes.DELETE:
-          return 'deleted'
+          return 'delete'
         case itemTypes.RETAIN:
-          return 'retained'
+          return 'retain'
       }
     },
     flattenActions(actions)
