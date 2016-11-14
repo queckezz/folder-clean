@@ -101,6 +101,7 @@ const clean = async (path, _config) => {
 module.exports = {
   getFolderActions,
   flattenActions,
+  executeActions,
   sortByType,
   itemTypes,
   clean
