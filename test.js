@@ -1,138 +1,184 @@
 
 const { sortByType, clean, getFolderActions, flattenActions, itemTypes, actionTypes } = require('./')
+const { ephemeralFsFromObject } = require('fs-from-object')
 const { open, close, stat, utimes } = require('mz/fs')
 const cpr = require('recursive-copy')
 const { join } = require('path')
 const rmfr = require('rmfr')
 const test = require('ava')
 
-test('flat file list', async (t) => {
-  const path = join(process.cwd(), 'fixtures/basic')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: false,
-    maxAge: 90
+const setupTree = (task) => {
+  const oldFile = { name: 'index-old.txt', contents: 'test', mtime: new Date('06/17/2016') }
+  const newFile =  { name: 'index.txt', contents: 'test', mtime: new Date('11/17/2016') }
+
+  const tree = [
+    { name: 'basic', contents: [oldFile, newFile] },
+
+    {
+      name: 'empty',
+      contents: [
+        { name: 'empty', contents: [] }
+      ]
+    },
+
+    {
+      name: 'recursive',
+      contents: [
+        { name: 'sub-folder', contents: [oldFile, newFile] },
+        oldFile,
+        newFile
+      ]
+    },
+
+    {
+      name: 'empty-after-delete',
+      contents: [
+        { name: 'sub-folder', contents: [oldFile] }
+      ]
+    },
+
+    {
+      name: 'test-delete',
+      contents: [
+        { name: 'empty-folder', contents: [] },
+        { name: 'sub-folder', contents: [oldFile, newFile] },
+        oldFile,
+        newFile
+      ]
+    }
+  ]
+
+  return ephemeralFsFromObject(tree, task)
+}
+
+test('flat file list', (t) => {
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'basic')
+
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      recursive: false,
+      maxAge: 90
+    })
+    t.is(actions[0].actionType, actionTypes.DELETE)
+    t.is(actions[1].actionType, actionTypes.RETAIN)
   })
-  t.is(actions[0].actionType, actionTypes.DELETE)
-  t.is(actions[1].actionType, actionTypes.RETAIN)
 })
 
-test('recursive', async (t) => {
-  const path = join(process.cwd(), 'fixtures/recursive')
+test('recursive', (t) => {
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'recursive')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: true,
-    maxAge: 90
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      recursive: true,
+      maxAge: 90
+    })
+
+    t.is(actions[0].actionType, actionTypes.DELETE)
+    t.is(actions[1].actionType, actionTypes.RETAIN)
+
+    const dir = actions[2]
+    t.is(dir.itemType, itemTypes.DIR)
+    t.is(dir.actions[0].actionType, actionTypes.DELETE)
+    t.is(dir.actions[1].actionType, actionTypes.RETAIN)
   })
-
-  t.is(actions[0].actionType, actionTypes.DELETE)
-  t.is(actions[1].actionType, actionTypes.RETAIN)
-
-  const dir = actions[2]
-  t.is(dir.itemType, itemTypes.DIR)
-  t.is(dir.actions[0].actionType, actionTypes.DELETE)
-  t.is(dir.actions[1].actionType, actionTypes.RETAIN)
 })
 
 test('empty folders', async (t) => {
-  const path = join(process.cwd(), 'fixtures/empty')
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'empty')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: true,
-    maxAge: 90
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      recursive: true,
+      maxAge: 90
+    })
+
+    t.is(actions[0].itemType, itemTypes.DIR)
+    t.is(actions[0].actionType, actionTypes.DELETE)
   })
-
-  t.is(actions[0].itemType, itemTypes.DIR)
-  t.is(actions[0].actionType, actionTypes.DELETE)
 })
 
 test('empty folders after delete', async (t) => {
-  const path = join(process.cwd(), 'fixtures/empty-after-delete')
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'empty-after-delete')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: true,
-    maxAge: 90
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      recursive: true,
+      maxAge: 90
+    })
+
+    t.is(actions[0].actionType, actionTypes.DELETE)
+    t.is(actions[0].actions[0].actionType, actionTypes.DELETE)
   })
-
-  t.is(actions[0].actionType, actionTypes.DELETE)
-  t.is(actions[0].actions[0].actionType, actionTypes.DELETE)
 })
 
 test('flatten actions', async (t) => {
-  const path = join(process.cwd(), 'fixtures/recursive')
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'recursive')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: true,
-    maxAge: 90
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      recursive: true,
+      maxAge: 90
+    })
+
+    const actionsf = flattenActions(actions)
+    t.is(actionsf.length, 5)
   })
-
-  const actionsf = flattenActions(actions)
-  t.is(actionsf.length, 5)
 })
 
 test('sort actions by type', async (t) => {
-  const path = join(process.cwd(), 'fixtures/recursive')
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'recursive')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: true,
-    maxAge: 90
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      recursive: true,
+      maxAge: 90
+    })
+
+    const sortedActions = sortByType(actions)
+    t.is(sortedActions.delete.length, 2)
+    t.is(sortedActions.retain.length, 3)
   })
-
-  const sortedActions = sortByType(actions)
-  t.is(sortedActions.delete.length, 2)
-  t.is(sortedActions.retain.length, 3)
 })
 
-const shouldntExist = (t, dest, item) => {
-  return stat(join(dest, item))
+const shouldntExist = (t, path, item) => {
+  return stat(join(path, item))
     .then(() => t.fail(`old item ${item} exists`))
     .catch(() => t.pass())
 }
 
-const shouldExist = (t, dest, item) => {
-  return stat(join(dest, item))
+const shouldExist = (t, path, item) => {
+  return stat(join(path, item))
     .then(() => t.pass())
     .catch(() => t.fail(`old item ${item} doesn\'t exist`))
 }
 
 test('execute actions', async (t) => {
-  const src = join(process.cwd(), 'fixtures/test-delete')
-  const dest = join(process.cwd(), 'fixtures/test-delete-copy')
-  const files = await cpr(src, dest)
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'test-delete')
 
-  // recursive copy doesn't keep mtime so we set it for each old document
-  await Promise.all(files.map(({ dest, stats }) => {
-    const t = new Date('07/14/2016')
-    if (stats.isFile() && dest.indexOf('index-old.txt') !== -1) {
-      return utimes(dest, t, t)
-    } else {
-      return Promise.resolve()
-    }
-  }))
+    await clean(path, {
+      deleteAt: new Date('11/14/2016'),
+      deleteEmptyFolders: true,
+      recursive: true,
+      maxAge: 90
+    })
 
-  const busyFiles = await clean(dest, {
-    deleteAt: new Date('11/14/2016'),
-    deleteEmptyFolders: true,
-    recursive: true,
-    maxAge: 90
+    await Promise.all([
+      shouldntExist(t, path, 'index-old.txt'),
+      shouldntExist(t, path, 'sub-folder/index-old.txt'),
+      shouldntExist(t, path, 'empty-folder'),
+
+      shouldExist(t, path, 'index.txt'),
+      shouldExist(t, path, 'sub-folder/index.txt')
+    ])
   })
-
-  await Promise.all([
-    shouldntExist(t, dest, 'index-old.txt'),
-    shouldntExist(t, dest, 'sub-folder/index-old.txt'),
-    shouldntExist(t, dest, 'empty-folder'),
-
-    shouldExist(t, dest, 'index.txt'),
-    shouldExist(t, dest, 'sub-folder/index.txt')
-  ])
-
-  await rmfr(dest)
 })
 
 
