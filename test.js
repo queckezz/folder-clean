@@ -1,6 +1,6 @@
 
 const { sortByType, clean, getFolderActions, flattenActions, itemTypes, actionTypes } = require('./')
-const { stat, utimes } = require('mz/fs')
+const { open, close, stat, utimes } = require('mz/fs')
 const cpr = require('recursive-copy')
 const { join } = require('path')
 const rmfr = require('rmfr')
@@ -133,4 +133,20 @@ test('execute actions', async (t) => {
   ])
 
   await rmfr(dest)
+})
+
+
+test.skip('busy files', async (t) => {
+  const path = join(process.cwd(), 'fixtures/basic')
+
+  const fd = await open(join(path, 'index-old.txt'), 'r+')
+
+  const actions = await getFolderActions(path, {
+    deleteAt: new Date('11/14/2016'),
+    recursive: false,
+    maxAge: 90
+  })
+
+  console.log(actions)
+  await close(fd)
 })
