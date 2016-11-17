@@ -1,14 +1,15 @@
 
 const { rmdir, unlink, readdir, stat } = require('mz/fs')
-const { flatten, merge, groupBy } = require('ramda')
+const { dissoc, merge, groupBy } = require('ramda')
 const { differenceInDays } = require('date-fns')
+const { reduce } = require('asyncro')
 const { join } = require('path')
 
 const itemTypes = {
   DELETE: Symbol('DELETE'),
   RETAIN: Symbol('RETAIN'),
   DIR: Symbol('DIR'),
-  EMPTY_DIR: Symbol('EMPTY_DIR')
+  DELETE_DIR: Symbol('DELETE_DIR')
 }
 
 const ItemType = (type, stats, path) => ({ type, path })
@@ -34,7 +35,7 @@ const getFolderActions = async (path, { deleteAt, maxAge, recursive }) => {
       const dirActions = await getFolderActions(action.path, { deleteAt, maxAge, recursive })
 
       return dirActions.every(({ type }) => type === itemTypes.DELETE)
-        ? { type: itemTypes.EMPTY_DIR, path: action.path, actions: dirActions }
+        ? { type: itemTypes.DELETE_DIR, path: action.path, actions: dirActions }
         : { type: itemTypes.DIR, path: action.path, actions: dirActions }
     }
 
@@ -45,25 +46,35 @@ const getFolderActions = async (path, { deleteAt, maxAge, recursive }) => {
 }
 
 const executeActions = (actions, deleteEmptyFolders) => {
-  return Promise.all(actions.map((action) => {
-    switch (action.type) {
-      case itemTypes.DELETE:
-        return unlink(action.path)
-      case itemTypes.DIR:
-        return executeActions(action.actions, deleteEmptyFolders)
-      case itemTypes.EMPTY_DIR:
-        return executeActions(action.actions, deleteEmptyFolders)
-          .then(() => rmdir(action.path))
+  return reduce(actions, async (acc, action) => {
+    if (action.type === itemTypes.DELETE) {
+      try {
+        await unlink(action.path)
+        return acc
+      } catch (e) {
+        if (e.code !== 'EBUSY') return acc
+        return acc.concat([ItemType(itemTypes.BUSY, action.stats, action.path)])
+      }
+    } else if (action.type === itemTypes.DIR) {
+      return executeActions(action.actions, deleteEmptyFolders)
+    } else if (action.type === itemTypes.DELETE_DIR) {
+      const busyFiles = await executeActions(action.actions, deleteEmptyFolders)
+      if (busyFiles.length === 0) await rmdir(action.path)
+      return acc.concat(busyFiles)
     }
-  }))
+
+    return acc
+  }, [])
 }
 
 const flattenActions = (actions) => {
   return actions.reduce((acc, action) => {
     switch (action.type) {
       case itemTypes.DIR:
-      case itemTypes.EMPTY_DIR:
-        return acc.concat(action.actions)
+      case itemTypes.DELETE_DIR:
+        return acc
+          .concat(action.actions)
+          .concat([dissoc('actions', action)])
       default:
         return acc.concat([action])
     }
@@ -75,9 +86,13 @@ const sortByType = (actions) => {
     ({ type }) => {
       switch (type) {
         case itemTypes.DELETE:
+        case itemTypes.DELETE_DIR:
           return 'delete'
         case itemTypes.RETAIN:
+        case itemTypes.DIR:
           return 'retain'
+        case itemTypes.BUSY:
+          return 'busy'
       }
     },
     flattenActions(actions)
@@ -93,9 +108,9 @@ const clean = async (path, _config) => {
   }, _config)
 
   const actions = await getFolderActions(path, config)
-  await executeActions(actions, config.deleteEmptyFolders)
+  const busyFiles = await executeActions(actions, config.deleteEmptyFolders) || []
 
-  return actions
+  return sortByType(actions.concat(busyFiles))
 }
 
 module.exports = {

@@ -46,7 +46,7 @@ test('empty folders', async (t) => {
     maxAge: 90
   })
 
-  t.is(actions[0].type, itemTypes.EMPTY_DIR)
+  t.is(actions[0].type, itemTypes.DELETE_DIR)
 })
 
 test('empty folders after delete', async (t) => {
@@ -58,7 +58,7 @@ test('empty folders after delete', async (t) => {
     maxAge: 90
   })
 
-  t.is(actions[0].type, itemTypes.EMPTY_DIR)
+  t.is(actions[0].type, itemTypes.DELETE_DIR)
   t.is(actions[0].actions[0].type, itemTypes.DELETE)
 })
 
@@ -72,7 +72,7 @@ test('flatten actions', async (t) => {
   })
 
   const actionsf = flattenActions(actions)
-  t.is(actionsf.length, 4)
+  t.is(actionsf.length, 5)
 })
 
 test('sort actions by type', async (t) => {
@@ -86,10 +86,22 @@ test('sort actions by type', async (t) => {
 
   const sortedActions = sortByType(actions)
   t.is(sortedActions.delete.length, 2)
-  t.is(sortedActions.retain.length, 2)
+  t.is(sortedActions.retain.length, 3)
 })
 
-test.skip('actually deletes stuff', async (t) => {
+const shouldntExist = (t, dest, item) => {
+  return stat(join(dest, item))
+    .then(() => t.fail(`old item ${item} exists`))
+    .catch(() => t.pass())
+}
+
+const shouldExist = (t, dest, item) => {
+  return stat(join(dest, item))
+    .then(() => t.pass())
+    .catch(() => t.fail(`old item ${item} doesn\'t exist`))
+}
+
+test('execute actions', async (t) => {
   const src = join(process.cwd(), 'fixtures/test-delete')
   const dest = join(process.cwd(), 'fixtures/test-delete-copy')
   const files = await cpr(src, dest)
@@ -104,20 +116,22 @@ test.skip('actually deletes stuff', async (t) => {
     }
   }))
 
-  await clean(dest, {
+  const busyFiles = await clean(dest, {
     deleteAt: new Date('11/14/2016'),
     deleteEmptyFolders: true,
     recursive: true,
     maxAge: 90
   })
 
-  await Promise.all([
-    stat(join(dest, 'index-old.txt')).catch(t.pass),
-    stat(join(dest, 'sub-folder/index-old.txt')).catch(t.pass),
-    stat(join(dest, 'empty-folder')).catch(t.pass),
+  console.log(busyFiles)
 
-    stat(join(dest, 'index.txt')).catch(t.fail),
-    stat(join(dest, 'sub-folder/index.txt')).catch(t.fail),
+  await Promise.all([
+    shouldntExist(t, dest, 'index-old.txt'),
+    shouldntExist(t, dest, 'sub-folder/index-old.txt'),
+    shouldntExist(t, dest, 'empty-folder'),
+
+    shouldExist(t, dest, 'index.txt'),
+    shouldExist(t, dest, 'sub-folder/index.txt')
   ])
 
   await rmfr(dest)
