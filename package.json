@@ -4,12 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --harmony-async-await test.js | tap-dot"
+    "test": "node --harmony-async-await node_modules/ava/cli.js"
   },
   "keywords": [],
   "author": "Fabian Eichenberger <fabian.eichenberger@gmail.com> (https://github.com/queckezz)",
   "license": "MIT",
   "devDependencies": {
+    "ava": "^0.17.0",
     "recursive-copy": "^2.0.5",
     "rmfr": "^1.0.1",
     "tap-dot": "^1.0.5",
