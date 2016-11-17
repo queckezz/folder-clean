@@ -86,7 +86,7 @@ test('recursive', (t) => {
   })
 })
 
-test('empty folders', async (t) => {
+test('empty folders', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'empty')
 
@@ -101,7 +101,7 @@ test('empty folders', async (t) => {
   })
 })
 
-test('empty folders after delete', async (t) => {
+test('empty folders after delete', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'empty-after-delete')
 
@@ -116,7 +116,7 @@ test('empty folders after delete', async (t) => {
   })
 })
 
-test('flatten actions', async (t) => {
+test('flatten actions', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'recursive')
 
@@ -131,7 +131,7 @@ test('flatten actions', async (t) => {
   })
 })
 
-test('sort actions by type', async (t) => {
+test('sort actions by type', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'recursive')
 
@@ -159,7 +159,7 @@ const shouldExist = (t, path, item) => {
     .catch(() => t.fail(`old item ${item} doesn\'t exist`))
 }
 
-test('execute actions', async (t) => {
+test('execute actions', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'test-delete')
 
@@ -182,17 +182,20 @@ test('execute actions', async (t) => {
 })
 
 
-test.skip('busy files', async (t) => {
-  const path = join(process.cwd(), 'fixtures/basic')
+test.only('busy files', (t) => {
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'basic')
 
-  const fd = await open(join(path, 'index-old.txt'), 'r+')
+    const fd = await open(join(path, 'index-old.txt'), 'r+')
 
-  const actions = await getFolderActions(path, {
-    deleteAt: new Date('11/14/2016'),
-    recursive: false,
-    maxAge: 90
+    const actions = await clean(path, {
+      deleteAt: new Date('11/14/2016'),
+      deleteEmptyFolders: true,
+      recursive: true,
+      maxAge: 90
+    })
+
+    console.log(actions)
+    await close(fd)
   })
-
-  console.log(actions)
-  await close(fd)
 })
