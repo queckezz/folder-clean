@@ -1,5 +1,5 @@
 
-const { sortByType, clean, getFolderActions, flattenActions, itemTypes } = require('./')
+const { sortByType, clean, getFolderActions, flattenActions, itemTypes, actionTypes } = require('./')
 const { stat, utimes } = require('mz/fs')
 const cpr = require('recursive-copy')
 const { join } = require('path')
@@ -14,9 +14,8 @@ test('flat file list', async (t) => {
     recursive: false,
     maxAge: 90
   })
-
-  t.is(actions[0].type, itemTypes.DELETE)
-  t.is(actions[1].type, itemTypes.RETAIN)
+  t.is(actions[0].actionType, actionTypes.DELETE)
+  t.is(actions[1].actionType, actionTypes.RETAIN)
 })
 
 test('recursive', async (t) => {
@@ -28,13 +27,13 @@ test('recursive', async (t) => {
     maxAge: 90
   })
 
-  t.is(actions[0].type, itemTypes.DELETE)
-  t.is(actions[1].type, itemTypes.RETAIN)
-  t.is(actions[2].type, itemTypes.DIR)
+  t.is(actions[0].actionType, actionTypes.DELETE)
+  t.is(actions[1].actionType, actionTypes.RETAIN)
 
-  const dirActions = actions[2].actions
-  t.is(dirActions[0].type, itemTypes.DELETE)
-  t.is(dirActions[1].type, itemTypes.RETAIN)
+  const dir = actions[2]
+  t.is(dir.itemType, itemTypes.DIR)
+  t.is(dir.actions[0].actionType, actionTypes.DELETE)
+  t.is(dir.actions[1].actionType, actionTypes.RETAIN)
 })
 
 test('empty folders', async (t) => {
@@ -46,7 +45,8 @@ test('empty folders', async (t) => {
     maxAge: 90
   })
 
-  t.is(actions[0].type, itemTypes.DELETE_DIR)
+  t.is(actions[0].itemType, itemTypes.DIR)
+  t.is(actions[0].actionType, actionTypes.DELETE)
 })
 
 test('empty folders after delete', async (t) => {
@@ -58,8 +58,8 @@ test('empty folders after delete', async (t) => {
     maxAge: 90
   })
 
-  t.is(actions[0].type, itemTypes.DELETE_DIR)
-  t.is(actions[0].actions[0].type, itemTypes.DELETE)
+  t.is(actions[0].actionType, actionTypes.DELETE)
+  t.is(actions[0].actions[0].actionType, actionTypes.DELETE)
 })
 
 test('flatten actions', async (t) => {
@@ -122,8 +122,6 @@ test('execute actions', async (t) => {
     recursive: true,
     maxAge: 90
   })
-
-  console.log(busyFiles)
 
   await Promise.all([
     shouldntExist(t, dest, 'index-old.txt'),

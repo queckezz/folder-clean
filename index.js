@@ -5,24 +5,29 @@ const { differenceInDays } = require('date-fns')
 const { reduce } = require('asyncro')
 const { join } = require('path')
 
-const itemTypes = {
+const actionTypes = {
   DELETE: Symbol('DELETE'),
   RETAIN: Symbol('RETAIN'),
-  DIR: Symbol('DIR'),
-  DELETE_DIR: Symbol('DELETE_DIR')
+  BUSY: Symbol('BUSy')
 }
 
-const ItemType = (type, stats, path) => ({ type, path })
+const itemTypes = {
+  DIR: Symbol('DIR'),
+  FILE: Symbol('FILE')
+}
+
+const FileAction = (actionType, stats, path) => ({ itemType: itemTypes.FILE, actionType, path })
+const DirAction = (actionType, stats, path, actions ) => ({ itemType: itemTypes.DIR, actionType, path, actions })
 
 const getItemAction = async (fullPath, deleteDate, maxAge) => {
   const stats = await stat(fullPath)
 
   if (stats.isFile()) {
     return maxAge <= differenceInDays(deleteDate, stats.mtime)
-      ? ItemType(itemTypes.DELETE, stats, fullPath)
-      : ItemType(itemTypes.RETAIN, stats, fullPath)
+      ? FileAction(actionTypes.DELETE, stats, fullPath)
+      : FileAction(actionTypes.RETAIN, stats, fullPath)
   } else {
-    return ItemType(itemTypes.DIR, stats, fullPath)
+    return DirAction(null, stats, fullPath)
   }
 }
 
@@ -31,12 +36,12 @@ const getFolderActions = async (path, { deleteAt, maxAge, recursive }) => {
 
   const actions = await Promise.all(directoryContents.map(async (item) => {
     const action = await getItemAction(join(path, item), deleteAt, maxAge)
-    if (recursive && action.type === itemTypes.DIR) {
+    if (recursive && action.itemType === itemTypes.DIR) {
       const dirActions = await getFolderActions(action.path, { deleteAt, maxAge, recursive })
 
-      return dirActions.every(({ type }) => type === itemTypes.DELETE)
-        ? { type: itemTypes.DELETE_DIR, path: action.path, actions: dirActions }
-        : { type: itemTypes.DIR, path: action.path, actions: dirActions }
+      return dirActions.every(({ actionType }) => actionType === actionTypes.DELETE)
+        ? DirAction(actionTypes.DELETE, action.stats, action.path, dirActions)
+        : DirAction(actionTypes.RETAIN, action.stats, action.path, dirActions)
     }
 
     return action
@@ -47,51 +52,49 @@ const getFolderActions = async (path, { deleteAt, maxAge, recursive }) => {
 
 const executeActions = (actions, deleteEmptyFolders) => {
   return reduce(actions, async (acc, action) => {
-    if (action.type === itemTypes.DELETE) {
+    if (action.actionType !== actionTypes.DELETE) {
+      return action.itemType === itemTypes.DIR
+        ? executeActions(action.actions, deleteEmptyFolders)
+        : acc
+    }
+
+    if (action.itemType === itemTypes.DIR) {
+      const busyFiles = await executeActions(action.actions, deleteEmptyFolders)
+      if (busyFiles.length === 0) await rmdir(action.path)
+      return acc.concat(busyFiles)
+    } else {
       try {
         await unlink(action.path)
         return acc
       } catch (e) {
         if (e.code !== 'EBUSY') return acc
-        return acc.concat([ItemType(itemTypes.BUSY, action.stats, action.path)])
+        return acc.concat([FileAction(itemTypes.BUSY, action.stats, action.path)])
       }
-    } else if (action.type === itemTypes.DIR) {
-      return executeActions(action.actions, deleteEmptyFolders)
-    } else if (action.type === itemTypes.DELETE_DIR) {
-      const busyFiles = await executeActions(action.actions, deleteEmptyFolders)
-      if (busyFiles.length === 0) await rmdir(action.path)
-      return acc.concat(busyFiles)
     }
-
-    return acc
   }, [])
 }
 
 const flattenActions = (actions) => {
   return actions.reduce((acc, action) => {
-    switch (action.type) {
-      case itemTypes.DIR:
-      case itemTypes.DELETE_DIR:
-        return acc
-          .concat(action.actions)
-          .concat([dissoc('actions', action)])
-      default:
-        return acc.concat([action])
+    if (action.itemType === itemTypes.DIR) {
+      return acc
+        .concat(action.actions)
+        .concat([dissoc('actions', action)])
+    } else {
+      return acc.concat([action])
     }
   }, [])
 }
 
 const sortByType = (actions) => {
   return groupBy(
-    ({ type }) => {
-      switch (type) {
-        case itemTypes.DELETE:
-        case itemTypes.DELETE_DIR:
+    ({ actionType }) => {
+      switch (actionType) {
+        case actionTypes.DELETE:
           return 'delete'
-        case itemTypes.RETAIN:
-        case itemTypes.DIR:
+        case actionTypes.RETAIN:
           return 'retain'
-        case itemTypes.BUSY:
+        case actionTypes.BUSY:
           return 'busy'
       }
     },
@@ -117,6 +120,7 @@ module.exports = {
   getFolderActions,
   flattenActions,
   executeActions,
+  actionTypes,
   sortByType,
   itemTypes,
   clean
