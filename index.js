@@ -111,7 +111,7 @@ const clean = async (path, _config) => {
   }, _config)
 
   const actions = await getFolderActions(path, config)
-  const busyFiles = await executeActions(actions, config.deleteEmptyFolders) || []
+  const busyFiles = await executeActions(actions, config.deleteEmptyFolders)
 
   return sortByType(actions.concat(busyFiles))
 }
