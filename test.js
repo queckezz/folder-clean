@@ -91,8 +91,8 @@ test('sort actions by type', async (t) => {
   })
 
   const sortedActions = sortByType(actions)
-  t.equal(sortedActions.deleted.length, 2)
-  t.equal(sortedActions.retained.length, 2)
+  t.equal(sortedActions.delete.length, 2)
+  t.equal(sortedActions.retain.length, 2)
   t.end()
 })
 
