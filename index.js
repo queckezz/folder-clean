@@ -113,6 +113,19 @@ const sortByType = (actions) => {
   )
 }
 
+/**
+ * Deletes all files in a folder which are older than a given date. It returns
+ * a detailed report of which files have been **kept**, **deleted**
+ * or were **busy**.
+ *
+ * @param {string} path - Absolute path
+ * @param {Object} [config]
+ * @param {Boolean} [config.recursive=false] - Whether to clean recursively or not
+ * @param {Boolean} [config.deleteEmptyFolders=false] - Whether to delete empty sub folders or not
+ * @param {Number} [config.maxAge=90] - Number of days where a file doesn't get deleted
+ * @returns {Promise<Object>} - Detailed report about the cleaning process
+ */
+
 const clean = async (path, _config) => {
   const config = merge({
     deleteEmptyFolders: false,
