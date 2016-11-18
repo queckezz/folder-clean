@@ -8,7 +8,7 @@ const { join } = require('path')
 const actionTypes = {
   DELETE: Symbol('DELETE'),
   RETAIN: Symbol('RETAIN'),
-  BUSY: Symbol('BUSy')
+  BUSY: Symbol('BUSY')
 }
 
 const itemTypes = {
