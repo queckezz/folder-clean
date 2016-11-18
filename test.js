@@ -1,10 +1,8 @@
 
 const { sortByType, clean, getFolderActions, flattenActions, itemTypes, actionTypes } = require('./')
 const { ephemeralFsFromObject } = require('fs-from-object')
-const { open, close, stat, utimes } = require('mz/fs')
-const cpr = require('recursive-copy')
+const { open, close, stat } = require('mz/fs')
 const { join } = require('path')
-const rmfr = require('rmfr')
 const test = require('ava')
 
 const setupTree = (task) => {
@@ -155,7 +153,7 @@ const shouldntExist = (t, path, item) => {
 const shouldExist = (t, path, item) => {
   return stat(join(path, item))
     .then(() => t.pass())
-    .catch(() => t.fail(`old item ${item} doesn\'t exist`))
+    .catch(() => t.fail(`old item ${item} doesn't exist`))
 }
 
 test('execute actions', (t) => {
