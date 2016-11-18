@@ -182,7 +182,7 @@ test('execute actions', (t) => {
 })
 
 
-test.only('busy files', (t) => {
+test.skip('busy files', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'basic')
 
