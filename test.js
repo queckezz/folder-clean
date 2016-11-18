@@ -7,10 +7,9 @@ const { join } = require('path')
 const rmfr = require('rmfr')
 const test = require('ava')
 
-
 const setupTree = (task) => {
   const oldFile = { name: 'index-old.txt', contents: 'test', mtime: new Date('06/17/2016') }
-  const newFile =  { name: 'index.txt', contents: 'test', mtime: new Date('11/17/2016') }
+  const newFile = { name: 'index.txt', contents: 'test', mtime: new Date('11/17/2016') }
 
   const tree = [
     { name: 'basic', contents: [oldFile, newFile] },
@@ -180,7 +179,6 @@ test('execute actions', (t) => {
     ])
   })
 })
-
 
 test.skip('busy files', (t) => {
   return setupTree(async (ephemeralPath) => {

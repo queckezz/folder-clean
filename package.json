@@ -2,24 +2,31 @@
   "name": "folder-clean",
   "version": "0.0.1",
   "description": "",
-  "main": "index.js",
+  "main": "index.out.js",
   "scripts": {
-    "test": "node --harmony-async-await node_modules/ava/cli.js"
+    "prepublish": "async-to-gen index.js > index.out.js",
+    "test": "run-s test:*",
+    "test:lint": "standard --fix",
+    "test:run": "ava"
   },
   "keywords": [],
   "author": "Fabian Eichenberger <fabian.eichenberger@gmail.com> (https://github.com/queckezz)",
   "license": "MIT",
+  "ava": {
+    "require": [
+      "async-to-gen/register"
+    ]
+  },
   "devDependencies": {
+    "async-to-gen": "^1.1.4",
     "ava": "^0.17.0",
-    "fs-from-object": "^0.3.0",
-    "recursive-copy": "^2.0.5",
-    "rmfr": "^1.0.1",
-    "tap-dot": "^1.0.5",
-    "tape": "^4.6.2"
+    "npm-run-all": "^3.1.1",
+    "standard": "^8.5.0"
   },
   "dependencies": {
     "asyncro": "^2.0.1",
     "date-fns": "^1.10.0",
+    "fs-from-object": "^0.3.0",
     "mz": "^2.5.0",
     "ramda": "^0.22.1"
   }
