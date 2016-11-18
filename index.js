@@ -16,8 +16,14 @@ const itemTypes = {
   FILE: Symbol('FILE')
 }
 
-const FileAction = (actionType, stats, path) => ({ itemType: itemTypes.FILE, actionType, path })
-const DirAction = (actionType, stats, path, actions) => ({ itemType: itemTypes.DIR, actionType, path, actions })
+const FileAction = (actionType, stats, path) =>
+  ({ itemType: itemTypes.FILE, actionType, path })
+
+const DirAction = (actionType, stats, path, actions) =>
+  ({ itemType: itemTypes.DIR, actionType, path, actions })
+
+const isFolderDeletable = (actions) =>
+  actions.every(({ actionType }) => actionType === actionTypes.DELETE)
 
 const getItemAction = async (fullPath, deleteDate, maxAge) => {
   const stats = await stat(fullPath)
@@ -37,9 +43,12 @@ const getFolderActions = async (path, { deleteAt, maxAge, recursive }) => {
   const actions = await Promise.all(directoryContents.map(async (item) => {
     const action = await getItemAction(join(path, item), deleteAt, maxAge)
     if (recursive && action.itemType === itemTypes.DIR) {
-      const dirActions = await getFolderActions(action.path, { deleteAt, maxAge, recursive })
+      const dirActions = await getFolderActions(
+        action.path,
+        { deleteAt, maxAge, recursive }
+      )
 
-      return dirActions.every(({ actionType }) => actionType === actionTypes.DELETE)
+      return isFolderDeletable(dirActions)
         ? DirAction(actionTypes.DELETE, action.stats, action.path, dirActions)
         : DirAction(actionTypes.RETAIN, action.stats, action.path, dirActions)
     }
@@ -68,7 +77,9 @@ const executeActions = (actions, deleteEmptyFolders) => {
         return acc
       } catch (e) {
         if (e.code !== 'EBUSY') return acc
-        return acc.concat([FileAction(itemTypes.BUSY, action.stats, action.path)])
+        return acc.concat([
+          FileAction(itemTypes.BUSY, action.stats, action.path)
+        ])
       }
     }
   }, [])
