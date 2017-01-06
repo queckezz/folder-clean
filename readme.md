@@ -71,19 +71,98 @@ Where `report` returns something like the following:
 ### clean
 
 Deletes all files in a folder which are older than a given date. It returns
-a detailed report of which files have been **kept**, **deleted**
-or were **busy**.
+a detailed report of which files have been **kept** or **deleted**. You can
+recursively delete and decide if you want to keep empty folders.
 
 **Parameters**
 
 -   `path` **[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)** Absolute path
--   `config` **\[[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)]** 
-    -   `config.recursive` **\[[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)]** Whether to clean recursively or not (optional, default `false`)
-    -   `config.deleteEmptyFolders` **\[[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)]** Whether to delete empty sub folders or not (optional, default `false`)
-    -   `config.maxAge` **\[[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)]** Number of days where a file doesn't get deleted (optional, default `90`)
+-   `config` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)?** 
+    -   `config.recursive` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to go through all sub folders or not (optional, default `false`)
+    -   `config.deleteEmptyFolders` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to delete empty sub folders or not (optional, default `false`)
+    -   `config.maxAge` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** Max age which determines how long a file will be kept until deleting it (optional, default `90`)
 -   `_config`  
 
-Returns **[Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)&lt;[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)>** Detailed report about the cleaning process
+**Examples**
+
+```javascript
+clean('~/some/folder', { recursive: true })
+  .then((actions) => {
+    // ~/some/folder cleaned
+  })
+```
+
+Returns **[Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)&lt;[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)>** Set of actions which have been executed
+
+### getFolderActions
+
+Returns an array of actions of how the folder should be cleaned. This just
+creates a report and does not delete anything. Each directory item in the
+array can have another set of actions.
+
+**Parameters**
+
+-   `path` **[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)** Absolute path
+-   `config` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)?** 
+    -   `config.recursive` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to go through all sub folders or not (optional, default `false`)
+    -   `config.deleteEmptyFolders` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to delete empty sub folders or not (optional, default `false`)
+    -   `config.maxAge` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** Max age which determines how long a file will be kept until deleting it (optional, default `90`)
+-   `deleteAt` **[Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date)** Date of when the deletion should happen (can be in the past of course)
+-   `$1` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)** 
+    -   `$1.deleteAt`  
+    -   `$1.maxAge`  
+    -   `$1.recursive`  
+    -   `$1.deleteEmptyFolders`  
+
+**Examples**
+
+```javascript
+const actions = await getFolderActions('~/some/folder', {
+  deleteAt: new Date('11/14/2016'),
+  recursive: false,
+  maxAge: 90
+})
+```
+
+Returns **[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)** actions - Actions to be executed by `executeActions`
+
+### executeActions
+
+Executes each action at filesystem level.
+
+**Parameters**
+
+-   `actions` **[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)** Tree-like action set, most likely from `getFolderActions`
+
+**Examples**
+
+```javascript
+await executeActions(await getFolderActions('~/some/folder', options))
+```
+
+Returns **[undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)** 
+
+### sortByType
+
+Creates an object from an array of actions, sorted by their action type.
+
+**Parameters**
+
+-   `actions` **[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)** An array of actions
+
+Returns **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)** actions
+
+### flattenActions
+
+Flattens each directory in an array of actions down to one level. You'll get
+an array of actions which includes each **sub action** from any directory and
+the action for the directory itself.
+
+**Parameters**
+
+-   `actions` **[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)** An array of actions
+
+Returns **[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)** flattenedActions
 
 ## License
 
