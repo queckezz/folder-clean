@@ -77,11 +77,11 @@ recursively delete and decide if you want to keep empty folders.
 **Parameters**
 
 -   `path` **[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)** Absolute path
--   `config` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)?** 
+-   `config` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)?**
     -   `config.recursive` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to go through all sub folders or not (optional, default `false`)
     -   `config.deleteEmptyFolders` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to delete empty sub folders or not (optional, default `false`)
     -   `config.maxAge` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** Max age which determines how long a file will be kept until deleting it (optional, default `90`)
--   `_config`  
+-   `_config`
 
 **Examples**
 
@@ -103,16 +103,11 @@ array can have another set of actions.
 **Parameters**
 
 -   `path` **[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)** Absolute path
--   `config` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)?** 
+-   `config` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)**
+    -   `config.deleteAt` **[Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date)** Date of when the deletion should happen (can be in the past of course)
     -   `config.recursive` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to go through all sub folders or not (optional, default `false`)
     -   `config.deleteEmptyFolders` **[Boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)?** Whether to delete empty sub folders or not (optional, default `false`)
     -   `config.maxAge` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** Max age which determines how long a file will be kept until deleting it (optional, default `90`)
--   `deleteAt` **[Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date)** Date of when the deletion should happen (can be in the past of course)
--   `$1` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)** 
-    -   `$1.deleteAt`  
-    -   `$1.maxAge`  
-    -   `$1.recursive`  
-    -   `$1.deleteEmptyFolders`  
 
 **Examples**
 
@@ -124,7 +119,7 @@ const actions = await getFolderActions('~/some/folder', {
 })
 ```
 
-Returns **[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)** actions - Actions to be executed by `executeActions`
+Returns **[Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)&lt;[Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array)>** actions - Actions to be executed by `executeActions`
 
 ### executeActions
 
@@ -140,7 +135,7 @@ Executes each action at filesystem level.
 await executeActions(await getFolderActions('~/some/folder', options))
 ```
 
-Returns **[undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)** 
+Returns **[undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)**
 
 ### sortByType
 

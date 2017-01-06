@@ -63,12 +63,12 @@ async function clean (path, _config) {
  * array can have another set of actions.
  *
  * @param {string} path - Absolute path
- * @param {Object} [config]
- * @param {Date} deleteAt - Date of when the deletion should happen (can be in the past of course)
+ * @param {Object} config
+ * @param {Date} config.deleteAt - Date of when the deletion should happen (can be in the past of course)
  * @param {Boolean} [config.recursive=false] - Whether to go through all sub folders or not
  * @param {Boolean} [config.deleteEmptyFolders=false] - Whether to delete empty sub folders or not
  * @param {Number} [config.maxAge=90] - Max age which determines how long a file will be kept until deleting it
- * @returns {Array} actions - Actions to be executed by `executeActions`
+ * @returns {Promise<Array>} actions - Actions to be executed by `executeActions`
  *
  * @example
  * const actions = await getFolderActions('~/some/folder', {
