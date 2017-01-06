@@ -1,7 +1,7 @@
 
 const { sortByType, clean, getFolderActions, flattenActions, itemTypes, actionTypes } = require('./')
 const { ephemeralFsFromObject } = require('fs-from-object')
-const { open, close, stat } = require('mz/fs')
+const { stat } = require('mz/fs')
 const { join } = require('path')
 const test = require('ava')
 

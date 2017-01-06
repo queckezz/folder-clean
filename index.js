@@ -2,7 +2,6 @@
 const { rmdir, unlink, readdir, stat } = require('mz/fs')
 const { dissoc, merge, groupBy } = require('ramda')
 const { differenceInDays } = require('date-fns')
-const { reduce } = require('asyncro')
 const { join } = require('path')
 
 const actionTypes = {
@@ -77,13 +76,14 @@ async function getItemAction (fullPath, deleteDate, maxAge) {
 }
 
 function isFolderDeletable (actions, deleteEmptyFolders) {
-   const isEmpty = actions.length === 0
+  const isEmpty = actions.length === 0
 
-   const hasAllDeletableFiles = actions
+  const hasAllDeletableFiles = actions
     .every(({ actionType }) => actionType === actionTypes.DELETE)
 
-  if (!deleteEmptyFolders)
+  if (!deleteEmptyFolders) {
     return false
+  }
 
   return isEmpty || hasAllDeletableFiles
 }
