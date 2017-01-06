@@ -16,16 +16,55 @@ const itemTypes = {
   FILE: Symbol('FILE')
 }
 
-const FileAction = (actionType, stats, path) =>
-  ({ itemType: itemTypes.FILE, actionType, path })
+module.exports = {
+  getFolderActions,
+  flattenActions,
+  executeActions,
+  actionTypes,
+  sortByType,
+  itemTypes,
+  clean
+}
 
-const DirAction = (actionType, stats, path, actions) =>
-  ({ itemType: itemTypes.DIR, actionType, path, actions })
+async function clean (path, _config) {
+  const config = merge({
+    deleteEmptyFolders: false,
+    deleteAt: new Date(),
+    recursive: false,
+    maxAge: 90
+  }, _config)
 
-const isFolderDeletable = (actions) =>
-  actions.every(({ actionType }) => actionType === actionTypes.DELETE)
+  const actions = await getFolderActions(path, config)
+  await executeActions(actions)
+  return sortByType(actions)
+}
 
-const getItemAction = async (fullPath, deleteDate, maxAge) => {
+async function getFolderActions (
+  path,
+  { deleteAt, maxAge, recursive, deleteEmptyFolders }
+) {
+  const directoryContents = await readdir(path)
+
+  const actions = await Promise.all(directoryContents.map(async (item) => {
+    const action = await getItemAction(join(path, item), deleteAt, maxAge)
+    if (recursive && action.itemType === itemTypes.DIR) {
+      const dirActions = await getFolderActions(
+        action.path,
+        { deleteAt, maxAge, recursive }
+      )
+
+      return isFolderDeletable(dirActions, deleteEmptyFolders)
+        ? DirAction(actionTypes.DELETE, action.stats, action.path, dirActions)
+        : DirAction(actionTypes.RETAIN, action.stats, action.path, dirActions)
+    }
+
+    return action
+  }))
+
+  return actions
+}
+
+async function getItemAction (fullPath, deleteDate, maxAge) {
   const stats = await stat(fullPath)
 
   if (stats.isFile()) {
@@ -37,55 +76,19 @@ const getItemAction = async (fullPath, deleteDate, maxAge) => {
   }
 }
 
-const getFolderActions = async (path, { deleteAt, maxAge, recursive }) => {
-  const directoryContents = await readdir(path)
+function isFolderDeletable (actions, deleteEmptyFolders) {
+   const isEmpty = actions.length === 0
 
-  const actions = await Promise.all(directoryContents.map(async (item) => {
-    const action = await getItemAction(join(path, item), deleteAt, maxAge)
-    if (recursive && action.itemType === itemTypes.DIR) {
-      const dirActions = await getFolderActions(
-        action.path,
-        { deleteAt, maxAge, recursive }
-      )
+   const hasAllDeletableFiles = actions
+    .every(({ actionType }) => actionType === actionTypes.DELETE)
 
-      return isFolderDeletable(dirActions)
-        ? DirAction(actionTypes.DELETE, action.stats, action.path, dirActions)
-        : DirAction(actionTypes.RETAIN, action.stats, action.path, dirActions)
-    }
+  if (!deleteEmptyFolders)
+    return false
 
-    return action
-  }))
-
-  return actions
+  return isEmpty || hasAllDeletableFiles
 }
 
-const executeActions = (actions, deleteEmptyFolders) => {
-  return reduce(actions, async (acc, action) => {
-    if (action.actionType !== actionTypes.DELETE) {
-      return action.itemType === itemTypes.DIR
-        ? executeActions(action.actions, deleteEmptyFolders)
-        : acc
-    }
-
-    if (action.itemType === itemTypes.DIR) {
-      const busyFiles = await executeActions(action.actions, deleteEmptyFolders)
-      if (busyFiles.length === 0) await rmdir(action.path)
-      return acc.concat(busyFiles)
-    } else {
-      try {
-        await unlink(action.path)
-        return acc
-      } catch (e) {
-        if (e.code !== 'EBUSY') return acc
-        return acc.concat([
-          FileAction(itemTypes.BUSY, action.stats, action.path)
-        ])
-      }
-    }
-  }, [])
-}
-
-const flattenActions = (actions) => {
+function flattenActions (actions) {
   return actions.reduce((acc, action) => {
     if (action.itemType === itemTypes.DIR) {
       return acc
@@ -97,7 +100,21 @@ const flattenActions = (actions) => {
   }, [])
 }
 
-const sortByType = (actions) => {
+async function executeActions (actions) {
+  for (let action of actions) {
+    if (action.itemType === itemTypes.DIR) {
+      await executeActions(action.actions)
+    }
+
+    if (action.actionType === actionTypes.DELETE) {
+      action.itemType === itemTypes.DIR
+        ? await rmdir(action.path)
+        : await unlink(action.path)
+    }
+  }
+}
+
+function sortByType (actions) {
   return groupBy(
     ({ actionType }) => {
       switch (actionType) {
@@ -113,39 +130,19 @@ const sortByType = (actions) => {
   )
 }
 
-/**
- * Deletes all files in a folder which are older than a given date. It returns
- * a detailed report of which files have been **kept**, **deleted**
- * or were **busy**.
- *
- * @param {string} path - Absolute path
- * @param {Object} [config]
- * @param {Boolean} [config.recursive=false] - Whether to clean recursively or not
- * @param {Boolean} [config.deleteEmptyFolders=false] - Whether to delete empty sub folders or not
- * @param {Number} [config.maxAge=90] - Number of days where a file doesn't get deleted
- * @returns {Promise<Object>} - Detailed report about the cleaning process
- */
-
-const clean = async (path, _config) => {
-  const config = merge({
-    deleteEmptyFolders: false,
-    deleteAt: new Date(),
-    recursive: false,
-    maxAge: 90
-  }, _config)
-
-  const actions = await getFolderActions(path, config)
-  const busyFiles = await executeActions(actions, config.deleteEmptyFolders)
-
-  return sortByType(actions.concat(busyFiles))
+function FileAction (actionType, stats, path) {
+  return {
+    itemType: itemTypes.FILE,
+    actionType,
+    path
+  }
 }
 
-module.exports = {
-  getFolderActions,
-  flattenActions,
-  executeActions,
-  actionTypes,
-  sortByType,
-  itemTypes,
-  clean
+function DirAction (actionType, stats, path, actions) {
+  return {
+    itemType: itemTypes.DIR,
+    actionType,
+    path,
+    actions
+  }
 }

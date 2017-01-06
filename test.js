@@ -13,7 +13,7 @@ const setupTree = (task) => {
     { name: 'basic', contents: [oldFile, newFile] },
 
     {
-      name: 'empty',
+      name: 'empty-folder',
       contents: [
         { name: 'empty', contents: [] }
       ]
@@ -83,12 +83,13 @@ test('recursive', (t) => {
   })
 })
 
-test('empty folders', (t) => {
+test('delete empty folders', (t) => {
   return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'empty')
+    const path = join(ephemeralPath, 'empty-folder')
 
     const actions = await getFolderActions(path, {
       deleteAt: new Date('11/14/2016'),
+      deleteEmptyFolders: true,
       recursive: true,
       maxAge: 90
     })
@@ -98,12 +99,29 @@ test('empty folders', (t) => {
   })
 })
 
+test('retain empty folders', (t) => {
+  return setupTree(async (ephemeralPath) => {
+    const path = join(ephemeralPath, 'empty-folder')
+
+    const actions = await getFolderActions(path, {
+      deleteAt: new Date('11/14/2016'),
+      deleteEmptyFolders: false,
+      recursive: true,
+      maxAge: 90
+    })
+
+    t.is(actions[0].itemType, itemTypes.DIR)
+    t.is(actions[0].actionType, actionTypes.RETAIN)
+  })
+})
+
 test('empty folders after delete', (t) => {
   return setupTree(async (ephemeralPath) => {
     const path = join(ephemeralPath, 'empty-after-delete')
 
     const actions = await getFolderActions(path, {
       deleteAt: new Date('11/14/2016'),
+      deleteEmptyFolders: true,
       recursive: true,
       maxAge: 90
     })
@@ -175,23 +193,5 @@ test('execute actions', (t) => {
       shouldExist(t, path, 'index.txt'),
       shouldExist(t, path, 'sub-folder/index.txt')
     ])
-  })
-})
-
-test.skip('busy files', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'basic')
-
-    const fd = await open(join(path, 'index-old.txt'), 'r+')
-
-    const actions = await clean(path, {
-      deleteAt: new Date('11/14/2016'),
-      deleteEmptyFolders: true,
-      recursive: true,
-      maxAge: 90
-    })
-
-    console.log(actions)
-    await close(fd)
   })
 })
