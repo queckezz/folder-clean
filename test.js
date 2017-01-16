@@ -17,23 +17,17 @@ const test = require('ava')
 
 const oldFile = {
   name: 'old.txt',
-  contents: 'test',
   mtime: new Date('01/13/2016')
 }
 
 const newFile = {
   name: 'new.txt',
-  contents: 'test',
   mtime: new Date('01/13/2017')
 }
 
 test('retains a single file when date is not older than the max age', (t) => {
-  return ephemeralFsFromObject([{
-    name: 'index.txt',
-    mtime: new Date('01/13/2017'),
-    contents: ''
-  }], async (path) => {
-    const file = join(path, 'index.txt')
+  return ephemeralFsFromObject([newFile], async (path) => {
+    const file = join(path, 'new.txt')
     const report = await analyzeItem(file, new Date('01/13/2017'), 90)
     t.is(report.itemType, itemTypes.FILE)
     t.is(report.path, file)
@@ -42,12 +36,8 @@ test('retains a single file when date is not older than the max age', (t) => {
 })
 
 test('deletes a single file when date is older than the max age', (t) => {
-  return ephemeralFsFromObject([{
-    name: 'index.txt',
-    mtime: new Date('01/13/2016'),
-    contents: ''
-  }], async (path) => {
-    const file = join(path, 'index.txt')
+  return ephemeralFsFromObject([oldFile], async (path) => {
+    const file = join(path, 'old.txt')
     const report = await analyzeItem(file, new Date('01/13/2017'), 90)
     t.is(report.itemType, itemTypes.FILE)
     t.is(report.path, file)
@@ -69,42 +59,30 @@ test('analyzes a single folder', (t) => {
 })
 
 test('analyzes folder contents', (t) => {
-  return ephemeralFsFromObject([
-    { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' },
-    { name: 'file-2.txt', mtime: new Date('01/13/2017'), contents: '' }
-  ], async (path) => {
+  return ephemeralFsFromObject([oldFile, newFile], async (path) => {
     const report = await analyzeFolder(path, new Date('01/13/2017'), 90)
-    t.is(report[0].actionType, actionTypes.DELETE)
-    t.is(report[1].actionType, actionTypes.RETAIN)
+    t.is(findItemAction(report, path, newFile.name).actionType, actionTypes.RETAIN)
+    t.is(findItemAction(report, path, oldFile.name).actionType, actionTypes.DELETE)
   })
 })
 
 test('recursively analyzes a folder', (t) => {
   return ephemeralFsFromObject([
-    { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' },
-
-    {
-      name: 'folder',
-      contents: [
-        { name: 'file-2.txt', mtime: new Date('01/13/2017'), contents: '' }
-      ]
-    }
+    oldFile,
+    { name: 'folder', contents: [newFile] }
   ], async (path) => {
     const report = await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
-    t.is(report[0].actionType, actionTypes.DELETE)
-    t.is(report[1].actionType, actionTypes.RETAIN)
-    t.is(report[1].actions.length, 1)
+    t.is(findItemAction(report, path, oldFile.name).actionType, actionTypes.DELETE)
+
+    const folder = findItemAction(report, path, 'folder')
+    t.is(folder.actionType, actionTypes.RETAIN)
+    t.is(folder.actions.length, 1)
   })
 })
 
 test('recursively analyzes a folder and removes empty ones', (t) => {
   return ephemeralFsFromObject([
-    {
-      name: 'folder',
-      contents: [
-        { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' }
-      ]
-    }
+    { name: 'folder', contents: [oldFile] }
   ], async (path) => {
     const report = markEmptyFoldersAsDeletable(
       await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
@@ -117,12 +95,7 @@ test('recursively analyzes a folder and removes empty ones', (t) => {
 
 test('keeps a folder with a new file, though empty folders can be deleted', (t) => {
   return ephemeralFsFromObject([
-    {
-      name: 'folder',
-      contents: [
-        { name: 'file-1.txt', mtime: new Date('01/13/2017'), contents: '' }
-      ]
-    }
+    { name: 'folder', contents: [newFile] }
   ], async (path) => {
     const report = markEmptyFoldersAsDeletable(
       await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
@@ -134,10 +107,7 @@ test('keeps a folder with a new file, though empty folders can be deleted', (t) 
 })
 
 test('converts array of actions to an object', (t) => {
-  return ephemeralFsFromObject([
-    { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' },
-    { name: 'file-2.txt', mtime: new Date('01/13/2017'), contents: '' }
-  ], async (path) => {
+  return ephemeralFsFromObject([oldFile, newFile], async (path) => {
     const report = actionsToObject(
       await analyzeFolder(path, new Date('01/13/2017'), 90)
     )
@@ -196,6 +166,10 @@ test('executes actions just one level deep', (t) => {
     ])
   })
 })
+
+function findItemAction (actions, path, name) {
+  return actions.find((action) => action.path === join(path, name))
+}
 
 function shouldExist (t, path, item) {
   return stat(join(path, item))
