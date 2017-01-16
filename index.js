@@ -11,8 +11,9 @@ const actionTypes = {
 }
 
 const itemTypes = {
-  DIR: Symbol('DIR'),
-  FILE: Symbol('FILE')
+  EMPTY_DIR: Symbol('EMPTY_DIR'),
+  FILE: Symbol('FILE'),
+  DIR: Symbol('DIR')
 }
 
 module.exports = {
@@ -34,36 +35,40 @@ async function analyzeFolderRecursive (path, deleteAt, maxAge) {
     }
 
     const dirActions = await analyzeFolder(action.path, deleteAt, maxAge)
-    return DirAction(actionTypes.RETAIN, action.stats, action.path, dirActions)
+    return DirAction(Object.assign({}, action, { actions: dirActions }))
   }))
 }
 
 function markEmptyFoldersAsDeletable (actions) {
   return actions.map((action) => {
-    if (action.itemType !== itemTypes.DIR) {
+    if (action.itemType === itemTypes.FILE) {
       return action
     }
 
-    return isFolderDeletable(action.actions)
-      ? DirAction(actionTypes.DELETE, action.stats, action.path, action.actions)
+    return isFolderDeletable(action)
+      ? DirAction(Object.assign({}, action, { actionType: actionTypes.DELETE }))
       : action
   })
 }
 
-function isFolderDeletable (actions) {
-  const isEmpty = actions.length === 0
+function isFolderDeletable (action) {
+  return isEmptyFolder(action) || hasFolderDeletableFiles(action)
+}
 
-  const hasAllDeletableFiles = actions
-    .every(({ actionType }) => actionType === actionTypes.DELETE)
+function hasFolderDeletableFiles ({ actions }) {
+  return actions.every(
+    ({ actionType }) => actionType === actionTypes.DELETE)
+}
 
-  return isEmpty || hasAllDeletableFiles
+function isEmptyFolder ({ itemType }) {
+  return itemType === itemTypes.EMPTY_DIR
 }
 
 async function analyzeFolder (path, deleteAt, maxAge) {
-  const directoryContents = await readdir(path)
+  const directoryItems = await readdir(path)
 
   const actions = await Promise.all(
-    directoryContents.map(
+    directoryItems.map(
       (item) => analyzeItem(join(path, item), deleteAt, maxAge))
   )
 
@@ -78,7 +83,15 @@ async function analyzeItem (fullPath, deleteDate, maxAge) {
       ? FileAction(actionTypes.DELETE, stats, fullPath)
       : FileAction(actionTypes.RETAIN, stats, fullPath)
   } else {
-    return DirAction(null, stats, fullPath)
+    const directoryItems = await readdir(fullPath)
+
+    return DirAction({
+      actionType: actionTypes.RETAIN,
+      isEmpty: directoryItems.length === 0,
+      path: fullPath,
+      actions: [],
+      stats
+    })
   }
 }
 
@@ -125,16 +138,15 @@ function flattenActions (actions) {
 }
 
 function FileAction (actionType, stats, path) {
-  return {
-    itemType: itemTypes.FILE,
-    actionType,
-    path
-  }
+  return { itemType: itemTypes.FILE, actionType, path }
 }
 
-function DirAction (actionType, stats, path, actions) {
+function DirAction ({ actionType, isEmpty, path, actions, stats }) {
   return {
-    itemType: itemTypes.DIR,
+    itemType: isEmpty
+      ? itemTypes.EMPTY_DIR
+      : itemTypes.DIR,
+
     actionType,
     path,
     actions

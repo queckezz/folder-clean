@@ -55,16 +55,16 @@ test('deletes a single file when date is older than the max age', (t) => {
   })
 })
 
-test('analyzes a single folder item but does not categorize into an action yet', (t) => {
+test('analyzes a single folder', (t) => {
   return ephemeralFsFromObject([{
     name: 'folder',
     contents: []
   }], async (path) => {
     const folder = join(path, 'folder')
     const report = await analyzeItem(folder)
-    t.is(report.itemType, itemTypes.DIR)
+    t.is(report.itemType, itemTypes.EMPTY_DIR)
     t.is(report.path, folder)
-    t.is(report.actionType, null)
+    t.is(report.actionType, actionTypes.RETAIN)
   })
 })
 
@@ -115,7 +115,7 @@ test('recursively analyzes a folder and removes empty ones', (t) => {
   })
 })
 
-test('keeps a folder with a file even though empty folders can be deleted', (t) => {
+test('keeps a folder with a new file, though empty folders can be deleted', (t) => {
   return ephemeralFsFromObject([
     {
       name: 'folder',
@@ -170,6 +170,28 @@ test('executes actions', (t) => {
       shouldntExist(t, path, 'empty-folder'),
 
       shouldExist(t, path, 'new.txt'),
+      shouldExist(t, path, 'sub-folder/new.txt')
+    ])
+  })
+})
+
+test('executes actions just one level deep', (t) => {
+  return ephemeralFsFromObject([
+    { name: 'empty-folder', contents: [] },
+    { name: 'sub-folder', contents: [oldFile, newFile] },
+    oldFile,
+    newFile
+  ], async (path) => {
+    const actions = await analyzeFolder(path, new Date('01/13/2017'), 90)
+
+    await executeActions(actions)
+
+    await Promise.all([
+      shouldntExist(t, path, 'old.txt'),
+
+      shouldExist(t, path, 'new.txt'),
+      shouldExist(t, path, 'empty-folder'),
+      shouldExist(t, path, 'sub-folder/old.txt'),
       shouldExist(t, path, 'sub-folder/new.txt')
     ])
   })
