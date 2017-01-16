@@ -1,197 +1,188 @@
 
-const { sortByType, clean, getFolderActions, flattenActions, itemTypes, actionTypes } = require('./')
+const {
+  markEmptyFoldersAsDeletable,
+  analyzeFolderRecursive,
+  actionsToObject,
+  executeActions,
+  analyzeFolder,
+  analyzeItem,
+  actionTypes,
+  itemTypes
+} = require('./')
+
 const { ephemeralFsFromObject } = require('fs-from-object')
 const { stat } = require('mz/fs')
 const { join } = require('path')
 const test = require('ava')
 
-const setupTree = (task) => {
-  const oldFile = { name: 'index-old.txt', contents: 'test', mtime: new Date('06/17/2016') }
-  const newFile = { name: 'index.txt', contents: 'test', mtime: new Date('11/17/2016') }
+const oldFile = {
+  name: 'old.txt',
+  contents: 'test',
+  mtime: new Date('01/13/2016')
+}
 
-  const tree = [
-    { name: 'basic', contents: [oldFile, newFile] },
+const newFile = {
+  name: 'new.txt',
+  contents: 'test',
+  mtime: new Date('01/13/2017')
+}
+
+test('retains a single file when date is not older than the max age', (t) => {
+  return ephemeralFsFromObject([{
+    name: 'index.txt',
+    mtime: new Date('01/13/2017'),
+    contents: ''
+  }], async (path) => {
+    const file = join(path, 'index.txt')
+    const report = await analyzeItem(file, new Date('01/13/2017'), 90)
+    t.is(report.itemType, itemTypes.FILE)
+    t.is(report.path, file)
+    t.is(report.actionType, actionTypes.RETAIN)
+  })
+})
+
+test('deletes a single file when date is older than the max age', (t) => {
+  return ephemeralFsFromObject([{
+    name: 'index.txt',
+    mtime: new Date('01/13/2016'),
+    contents: ''
+  }], async (path) => {
+    const file = join(path, 'index.txt')
+    const report = await analyzeItem(file, new Date('01/13/2017'), 90)
+    t.is(report.itemType, itemTypes.FILE)
+    t.is(report.path, file)
+    t.is(report.actionType, actionTypes.DELETE)
+  })
+})
+
+test('analyzes a single folder item but does not categorize into an action yet', (t) => {
+  return ephemeralFsFromObject([{
+    name: 'folder',
+    contents: []
+  }], async (path) => {
+    const folder = join(path, 'folder')
+    const report = await analyzeItem(folder)
+    t.is(report.itemType, itemTypes.DIR)
+    t.is(report.path, folder)
+    t.is(report.actionType, null)
+  })
+})
+
+test('analyzes folder contents', (t) => {
+  return ephemeralFsFromObject([
+    { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' },
+    { name: 'file-2.txt', mtime: new Date('01/13/2017'), contents: '' }
+  ], async (path) => {
+    const report = await analyzeFolder(path, new Date('01/13/2017'), 90)
+    t.is(report[0].actionType, actionTypes.DELETE)
+    t.is(report[1].actionType, actionTypes.RETAIN)
+  })
+})
+
+test('recursively analyzes a folder', (t) => {
+  return ephemeralFsFromObject([
+    { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' },
 
     {
-      name: 'empty-folder',
+      name: 'folder',
       contents: [
-        { name: 'empty', contents: [] }
-      ]
-    },
-
-    {
-      name: 'recursive',
-      contents: [
-        { name: 'sub-folder', contents: [oldFile, newFile] },
-        oldFile,
-        newFile
-      ]
-    },
-
-    {
-      name: 'empty-after-delete',
-      contents: [
-        { name: 'sub-folder', contents: [oldFile] }
-      ]
-    },
-
-    {
-      name: 'test-delete',
-      contents: [
-        { name: 'empty-folder', contents: [] },
-        { name: 'sub-folder', contents: [oldFile, newFile] },
-        oldFile,
-        newFile
+        { name: 'file-2.txt', mtime: new Date('01/13/2017'), contents: '' }
       ]
     }
-  ]
-
-  return ephemeralFsFromObject(tree, task)
-}
-
-test('flat file list', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'basic')
-
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      recursive: false,
-      maxAge: 90
-    })
-    t.is(actions[0].actionType, actionTypes.DELETE)
-    t.is(actions[1].actionType, actionTypes.RETAIN)
+  ], async (path) => {
+    const report = await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
+    t.is(report[0].actionType, actionTypes.DELETE)
+    t.is(report[1].actionType, actionTypes.RETAIN)
+    t.is(report[1].actions.length, 1)
   })
 })
 
-test('recursive', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'recursive')
+test('recursively analyzes a folder and removes empty ones', (t) => {
+  return ephemeralFsFromObject([
+    {
+      name: 'folder',
+      contents: [
+        { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' }
+      ]
+    }
+  ], async (path) => {
+    const report = markEmptyFoldersAsDeletable(
+      await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
+    )
 
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      recursive: true,
-      maxAge: 90
-    })
-
-    t.is(actions[0].actionType, actionTypes.DELETE)
-    t.is(actions[1].actionType, actionTypes.RETAIN)
-
-    const dir = actions[2]
-    t.is(dir.itemType, itemTypes.DIR)
-    t.is(dir.actions[0].actionType, actionTypes.DELETE)
-    t.is(dir.actions[1].actionType, actionTypes.RETAIN)
+    t.is(report[0].actionType, actionTypes.DELETE)
+    t.is(report[0].actions[0].actionType, actionTypes.DELETE)
   })
 })
 
-test('delete empty folders', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'empty-folder')
+test('keeps a folder with a file even though empty folders can be deleted', (t) => {
+  return ephemeralFsFromObject([
+    {
+      name: 'folder',
+      contents: [
+        { name: 'file-1.txt', mtime: new Date('01/13/2017'), contents: '' }
+      ]
+    }
+  ], async (path) => {
+    const report = markEmptyFoldersAsDeletable(
+      await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
+    )
 
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      deleteEmptyFolders: true,
-      recursive: true,
-      maxAge: 90
-    })
-
-    t.is(actions[0].itemType, itemTypes.DIR)
-    t.is(actions[0].actionType, actionTypes.DELETE)
+    t.is(report[0].actionType, actionTypes.RETAIN)
+    t.is(report[0].actions[0].actionType, actionTypes.RETAIN)
   })
 })
 
-test('retain empty folders', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'empty-folder')
+test('converts array of actions to an object', (t) => {
+  return ephemeralFsFromObject([
+    { name: 'file-1.txt', mtime: new Date('01/13/2016'), contents: '' },
+    { name: 'file-2.txt', mtime: new Date('01/13/2017'), contents: '' }
+  ], async (path) => {
+    const report = actionsToObject(
+      await analyzeFolder(path, new Date('01/13/2017'), 90)
+    )
 
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      deleteEmptyFolders: false,
-      recursive: true,
-      maxAge: 90
-    })
-
-    t.is(actions[0].itemType, itemTypes.DIR)
-    t.is(actions[0].actionType, actionTypes.RETAIN)
+    t.truthy(report.delete)
+    t.truthy(report.retain)
+    t.is(report.delete.length, 1)
+    t.is(report.retain.length, 1)
+    t.is(report.delete[0].actionType, actionTypes.DELETE)
+    t.is(report.retain[0].actionType, actionTypes.RETAIN)
   })
 })
 
-test('empty folders after delete', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'empty-after-delete')
+test('executes actions', (t) => {
+  return ephemeralFsFromObject([
+    { name: 'empty-folder', contents: [] },
+    { name: 'sub-folder', contents: [oldFile, newFile] },
+    oldFile,
+    newFile
+  ], async (path) => {
+    const actions = markEmptyFoldersAsDeletable(
+      await analyzeFolderRecursive(path, new Date('01/13/2017'), 90)
+    )
 
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      deleteEmptyFolders: true,
-      recursive: true,
-      maxAge: 90
-    })
+    await executeActions(actions)
 
-    t.is(actions[0].actionType, actionTypes.DELETE)
-    t.is(actions[0].actions[0].actionType, actionTypes.DELETE)
+    await Promise.all([
+      shouldntExist(t, path, 'old.txt'),
+      shouldntExist(t, path, 'sub-folder/old.txt'),
+      shouldntExist(t, path, 'empty-folder'),
+
+      shouldExist(t, path, 'new.txt'),
+      shouldExist(t, path, 'sub-folder/new.txt')
+    ])
   })
 })
 
-test('flatten actions', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'recursive')
-
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      recursive: true,
-      maxAge: 90
-    })
-
-    const actionsf = flattenActions(actions)
-    t.is(actionsf.length, 5)
-  })
-})
-
-test('sort actions by type', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'recursive')
-
-    const actions = await getFolderActions(path, {
-      deleteAt: new Date('11/14/2016'),
-      recursive: true,
-      maxAge: 90
-    })
-
-    const sortedActions = sortByType(actions)
-    t.is(sortedActions.delete.length, 2)
-    t.is(sortedActions.retain.length, 3)
-  })
-})
-
-const shouldntExist = (t, path, item) => {
-  return stat(join(path, item))
-    .then(() => t.fail(`old item ${item} exists`))
-    .catch(() => t.pass())
-}
-
-const shouldExist = (t, path, item) => {
+function shouldExist (t, path, item) {
   return stat(join(path, item))
     .then(() => t.pass())
     .catch(() => t.fail(`old item ${item} doesn't exist`))
 }
 
-test('execute actions', (t) => {
-  return setupTree(async (ephemeralPath) => {
-    const path = join(ephemeralPath, 'test-delete')
-
-    await clean(path, {
-      deleteAt: new Date('11/14/2016'),
-      deleteEmptyFolders: true,
-      recursive: true,
-      maxAge: 90
-    })
-
-    await Promise.all([
-      shouldntExist(t, path, 'index-old.txt'),
-      shouldntExist(t, path, 'sub-folder/index-old.txt'),
-      shouldntExist(t, path, 'empty-folder'),
-
-      shouldExist(t, path, 'index.txt'),
-      shouldExist(t, path, 'sub-folder/index.txt')
-    ])
-  })
-})
+function shouldntExist (t, path, item) {
+  return stat(join(path, item))
+    .then(() => t.fail(`old item ${item} still exists`))
+    .catch(() => t.pass())
+}
