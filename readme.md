@@ -38,7 +38,7 @@ Where `actions` contains something like the following.
   }, {
     // this would have gotten deleted if we didn't mark
     // empty folders.
-    itemType: Symbol(DIR),
+    itemType: Symbol(EMPTY_DIR),
     actionType: Symbol(DELETE),
     path: '~/absolute/path/to/empty-folder'
   }, {
